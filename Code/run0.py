@@ -1,0 +1,76 @@
+#!/usr/bin/env python
+
+import sys
+import os
+
+sys.path.append('../Code/')
+import Methods
+import importlib
+
+importlib.reload(Methods)
+from Methods import *
+
+if __name__ == "__main__":
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    iterations = 1
+    base_antigens_count = 1
+    exp_cnt = 1
+
+    data_dir = '../Data/'
+    f_train = 'df_train.tsv'
+    df_train = pd.read_csv(data_dir + f_train, sep='\t').sample(frac=0.2, random_state=0)
+    output_dir = '../Results/'
+    os.makedirs(output_dir, exist_ok = True)
+    
+    df0 = pd.DataFrame(columns = ['iter_cnt', 'base_ag_cnt', 'exp_cnt'])
+    df0.loc[len(df0)] = [iterations, base_antigens_count, exp_cnt]
+    df0.to_csv(output_dir+'exp_parameters.tsv', sep='\t', index=None)
+
+    #### Part with random comparison
+    print("******************************************************")
+    print("Random")
+    print("******************************************************")
+    df3 = pd.DataFrame(columns=['AgSeq', 'iter', 'binding_ratio', 'roc_auc', 'exp_num', 'type'])
+    for random_state in range(exp_cnt):
+        print("Experiment:", random_state)
+        roc_aucs, df_ags = random(dataset=df_train, iterations=iterations,
+                                      base_antigens_count=base_antigens_count, training_args=AbAgConvArgs(),
+                                      device=device, random_state=random_state)
+            
+        df_ags['exp_num'] = random_state
+        df_ags['type'] = 'random'
+        df3 = pd.concat([df3,df_ags], ignore_index=True)
+    df3.to_csv(output_dir+'df_random.tsv', sep='\t', index=None)       
+    
+    #### Part with gradient approach
+    print("******************************************************")
+    print("Gradient approach")
+    print("******************************************************")
+    df3 = pd.DataFrame(columns=['AgSeq', 'iter', 'binding_ratio', 'roc_auc', 'exp_num', 'type'])
+    for random_state in range(exp_cnt):
+        print("Experiment:", random_state)
+        for threshold in [0.5,0.8]:
+            roc_aucs, df_ags = gradient(dataset=df_train, iterations=iterations,
+                                      base_antigens_count=base_antigens_count, training_args=AbAgConvArgs(),
+                                      device=device, random_state=random_state, threshold=threshold)
+            df_ags['exp_num'] = random_state
+            df_ags['type'] = 'gradient_' + str( int(threshold*100) )
+            df3 = pd.concat([df3,df_ags], ignore_index=True)
+    df3.to_csv(output_dir+'df_grad.tsv', sep='\t', index=None)       
+    
+    #### Part with alignments approach
+    print("******************************************************")
+    print("Alignments approach")
+    print("******************************************************")
+    df3 = pd.DataFrame(columns=['AgSeq', 'iter', 'binding_ratio', 'roc_auc', 'exp_num', 'type'])
+    for random_state in range(exp_cnt):
+        print("Experiment:", random_state)
+        roc_aucs, df_ags = aligns(dataset=df_train, iterations=iterations,
+                                      base_antigens_count=base_antigens_count, training_args=AbAgConvArgs(),
+                                      device=device, random_state=random_state)
+        df_ags['exp_num'] = random_state
+        df_ags['type'] = 'aligns'
+        df3 = pd.concat([df3,df_ags], ignore_index=True)
+    df3.to_csv(output_dir+'df_aligns.tsv', sep='\t', index=None)        
