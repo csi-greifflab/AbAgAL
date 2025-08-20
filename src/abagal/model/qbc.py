@@ -5,10 +5,10 @@ import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import typing as tp
-import Code.AbAgAL
+import abagal.model.abagal
 import importlib
-importlib.reload(Code.AbAgAL)
-from Code.AbAgAL import *
+importlib.reload(abagal.model.abagal)
+from abagal.model.abagal import *
 from tqdm import tqdm
 
 
@@ -97,7 +97,7 @@ def train_committee(dataset: pd.DataFrame, committee: tp.List[AbAgConvNet], anti
     for split_type, df in df_split.items():
         datasets[split_type] = AbAgDataset(df=df, device=device)
         batch_size = training_args.train_batch_size if split_type == 'train' else training_args.val_batch_size
-        loaders[split_type] = torch.utils.data.DataLoader(dataset=datasets[split_type], batch_size=batch_size)
+        loaders[split_type] = torch.utils.data.DataLoader(dataset=datasets[split_type], batch_size=batch_size, num_workers=0, pin_memory=False)
     committee_optimizers = [torch.optim.Adam(model.parameters(), eps=training_args.eps, lr=training_args.lr) for model in committee]
     criterion = F.binary_cross_entropy_with_logits
     roc_aucs = {split_type: [] for split_type in ['val', 'test', 'testAB', 'testAG']}
@@ -111,10 +111,10 @@ def train_committee(dataset: pd.DataFrame, committee: tp.List[AbAgConvNet], anti
             roc_auc = test(args=training_args, model = model, device=device, test_loader=loaders[split_type])
 
             roc_aucs[split_type].append(roc_auc)
-    df_train_ags = pd.DataFrame(columns=['AgSeq', 'iter', 'binding_ratio', 'roc_auc_val', 'roc_aucs_test', 
+    df_train_ags = pd.DataFrame(columns=['AgSeq', 'iter', 'roc_auc_val', 'roc_aucs_test', 
                                          'roc_aucs_testAB', 'roc_aucs_testAG'])
     for ag in antigen_base_list[r:]:
-        df_train_ags.loc[len(df_train_ags)] = [ag, k, dataset[dataset.AgSeq == ag].BindClass.mean(), 
+        df_train_ags.loc[len(df_train_ags)] = [ag, k,
                                                sum(roc_aucs['val']) / len(roc_aucs['val']), 
                                                sum(roc_aucs['test']) / len(roc_aucs['test']), 
                                                sum(roc_aucs['testAB']) / len(roc_aucs['testAB']), 
@@ -147,7 +147,7 @@ def choose_next_antigen(dataset, committee, antigen_base_list, antigen_add_list,
     return antigen_base_list, antigen_add_list
 
 
-def query_by_committee_iter(dataset, committee_size, iterations, base_antigens_count, training_args, device, random_state, dis_quantile):
+def query_by_committee_iter(dataset, committee_size, iterations, base_antigens_count, training_args, device, random_state, dis_quantile=0.95):
     """
     Runs a query-by-committee approach for several iterations to select antigens for the model.
     """
@@ -159,8 +159,9 @@ def query_by_committee_iter(dataset, committee_size, iterations, base_antigens_c
     committee = [AbAgConvNet().to(device) for _ in range(committee_size)]
     committee, df_train_ags = train_committee(
         dataset, committee, antigen_base_list, training_args, device, random_state, 0, 0)
+
     for k in tqdm(range(iterations)):
-        memory_usage = torch.cuda.memory_allocated() / 1024**3
+        # memory_usage = torch.cuda.memory_allocated() / 1024**3
 
         antigen_base_list, antigen_add_list = choose_next_antigen(
             dataset, committee, antigen_base_list, antigen_add_list, iterations, training_args, device, random_state, dis_quantile)
@@ -184,11 +185,10 @@ def random_iter(dataset, committee_size, iterations, base_antigens_count, traini
         dataset, committee, antigen_base_list, training_args, device, random_state, 0, 0)
     np.random.seed(seed=random_state)
     for k in tqdm(range(iterations)):
-        memory_usage = torch.cuda.memory_allocated() / 1024**3
+        # memory_usage = torch.cuda.memory_allocated() / 1024**3
 
         new_antigen = antigen_add_list.pop(np.random.randint(len(antigen_add_list)))
         antigen_base_list.append(new_antigen)
-        committee, df_train_ags_iter = train_committee(dataset, committee, antigen_base_list, 
-                                                         training_args, device, random_state, k+1, -1)
+        committee, df_train_ags_iter = train_committee(dataset, committee, antigen_base_list, training_args, device, random_state, k+1, -1)
         df_train_ags = pd.concat([df_train_ags, df_train_ags_iter], ignore_index=True)
     return df_train_ags

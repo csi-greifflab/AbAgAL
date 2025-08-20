@@ -13,13 +13,13 @@ import torch
 from tqdm import tqdm
 import time
 
-from prepare_ab_ag_dataset import prepare_ab_ag_dataset
-from Code.Methods import AbAgConvArgs
-from Code.qbc import query_by_committee_iter, random_iter
+from abagal.data.prepare_ab_ag_dataset import prepare_ab_ag_dataset
+from abagal.model.methods import AbAgConvArgs, gradient
+from abagal.model.qbc import query_by_committee_iter, random_iter
 
 
 def run_experiment(
-    method: str = 'hamming_min',
+    method: str = 'random',
     random_seed: int = 0,
     error_rate: float = 0.05,
     data_path: Path | str = Path(__file__).resolve().parents[2] / 'data' / 'processed' / 'ab_ag_binding.tsv',
@@ -55,8 +55,7 @@ def run_experiment(
     print(f"[INFO] Prepared train dataset: {df_train.shape[0]} rows")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    iterations = df_train[df_train.total_split=='train'].AgSeq.drop_duplicates().shape[0] - base_antigens_count # default
-    # iterations = 2
+    iterations = df_train[df_train.total_split=='train'].AgSeq.drop_duplicates().shape[0] - base_antigens_count
     print(f"Experiment: {method}, random_state: {random_seed}")
 
     print(f"[INFO] Running method '{method}'...")
@@ -82,90 +81,13 @@ def run_experiment(
             random_state=random_seed,
             dis_quantile=error_rate,
         )
-    elif method == 'gradient':
-        df_res = gradient(
-            dataset=df_train,
-            iterations=iterations,
-            base_antigens_count=base_antigens_count,
-            training_args=AbAgConvArgs(),
-            device=device,
-            random_state=random_seed,
-        )
-    elif method == 'model_gradient':
-        df_res = gradient(
-            dataset=df_train,
-            iterations=iterations,
-            base_antigens_count=base_antigens_count,
-            training_args=AbAgConvArgs(),
-            device=device,
-            random_state=random_seed,
-            option = 'model_grad'
-        )
-    elif method == 'gradient_both_labels':
-        df_res = gradient(
-            dataset=df_train,
-            iterations=iterations,
-            base_antigens_count=base_antigens_count,
-            training_args=AbAgConvArgs(),
-            device=device,
-            random_state=random_seed,
-            option = 'both_labels'
-        )
-    elif method == 'gradient_conf':
-        df_res = gradient(
-            dataset=df_train,
-            iterations=iterations,
-            base_antigens_count=base_antigens_count,
-            training_args=AbAgConvArgs(),
-            device=device,
-            random_state=random_seed,
-            option = 'confounding'
-        )
-    elif method == 'gradient_input':
-        df_res = gradient_input(
-            dataset=df_train,
-            iterations=iterations,
-            base_antigens_count=base_antigens_count,
-            training_args=AbAgConvArgs(),
-            device=device,
-            random_state=random_seed,
-        )
-    elif method == 'aligns':
-        df_res = distance_based_iter(
-            dataset=df_train,
-            iterations=iterations,
-            base_antigens_count=base_antigens_count,
-            training_args=AbAgConvArgs(),
-            device=device,
-            random_state=random_seed,
-        )
-    elif method == 'hamming_max':
-        df_res = distance_based_iter(
-            dataset=df_train,
-            iterations=iterations,
-            base_antigens_count=base_antigens_count,
-            training_args=AbAgConvArgs(),
-            device=device,
-            random_state=random_seed,
-            option = 'hamming_max'
-        )
-    elif method == 'hamming_min':
-        df_res = distance_based_iter(
-            dataset=df_train,
-            iterations=iterations,
-            base_antigens_count=base_antigens_count,
-            training_args=AbAgConvArgs(),
-            device=device,
-            random_state=random_seed,
-            option = 'hamming_min'
-        )
     else:
         raise ValueError(f"Unknown method: {method}")
     elapsed = time.time() - start_time
     print(f"[INFO] Method '{method}' completed in {elapsed:.2f} seconds")
 
     df_res['ags_number'] = df_res.iter + base_antigens_count
-    result_path = results_dir / f'roc_aucs_{method}_{random_seed}_{error_rate}.tsv'
+    result_path = results_dir / f'roc_aucs_{method}_{random_seed}.tsv'
     df_res.to_csv(result_path, sep='\t', index=False)
     print(f"Results saved to {result_path}")
 

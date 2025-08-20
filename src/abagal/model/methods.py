@@ -6,15 +6,14 @@ import numpy as np
 import pandas as pd
 import typing as tp
 import Levenshtein
-from fastDamerauLevenshtein import damerauLevenshtein
 from scipy.spatial import distance
 from Bio import Align
 
-import Code.AbAgAL
 import importlib
 
-importlib.reload(Code.AbAgAL)
-from Code.AbAgAL import *
+import abagal.model.abagal
+importlib.reload(abagal.model.abagal)
+from abagal.model.abagal import *
 
 
 class AbAgConvArgs:
