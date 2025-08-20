@@ -10,11 +10,11 @@ from fastDamerauLevenshtein import damerauLevenshtein
 from scipy.spatial import distance
 from Bio import Align
 
-import AbAgAL
+import Code.AbAgAL
 import importlib
 
-importlib.reload(AbAgAL)
-from AbAgAL import *
+importlib.reload(Code.AbAgAL)
+from Code.AbAgAL import *
 
 
 class AbAgConvArgs:
@@ -32,6 +32,7 @@ class AbAgConvArgs:
         self.seed = 0
         self.log_interval = 10
         self.save_model = False
+        self.patience = 3
 
 
 def train(args, model, device, train_loader, validation_loader, optimizer, criterion, epochs, verbose=False):
