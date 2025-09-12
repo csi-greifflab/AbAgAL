@@ -39,7 +39,6 @@ class AbAgConvNet_grad(nn.Module):
     def __init__(self):
         super().__init__()
 
-        #self.sequence_length = 18
         self.sequence_length = 15
         self.convolution = nn.Conv2d(in_channels=1,
                                      out_channels=400,
@@ -69,6 +68,7 @@ class AbAgConvNet_grad(nn.Module):
         x = self.activation(self.fc1(x))
         x = self.fc2(x)
         return x
+        
 
 class AbAgConvNet_confounding(nn.Module):
     def __init__(self):
@@ -84,8 +84,9 @@ class AbAgConvNet_confounding(nn.Module):
         self.max_pooling = nn.MaxPool2d((2, 2), stride=1)  # Output: 12x17
         self.flatten = nn.Flatten()
         self.fc1 = nn.Linear(400 * (self.sequence_length - 8 + 2) * (20 - 5 + 2), 300)
-        self.fc2 = nn.Linear(300, 1)
+        self.fc2 = nn.Linear(300, 2)
         self.activation = nn.LeakyReLU()
+        self.logsoft = nn.LogSoftmax(dim=1)
 
     def forward(self, x):
         #print("Tensor device:", x.device)
@@ -98,6 +99,7 @@ class AbAgConvNet_confounding(nn.Module):
         x = self.flatten(x)
         x = self.activation(self.fc1(x))
         x = self.fc2(x)
+        x = self.logsoft(x)
         return x
     
 def one_hot_encoder(sequence):

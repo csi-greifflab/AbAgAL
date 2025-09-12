@@ -5,10 +5,10 @@ import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import typing as tp
-import abagal.model.abagal
+import model.abagal
 import importlib
-importlib.reload(abagal.model.abagal)
-from abagal.model.abagal import *
+importlib.reload(model.abagal)
+from model.abagal import *
 from tqdm import tqdm
 
 

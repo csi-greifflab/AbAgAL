@@ -13,13 +13,14 @@ import torch
 from tqdm import tqdm
 import time
 
-from abagal.data.prepare_ab_ag_dataset import prepare_ab_ag_dataset
-from abagal.model.methods import AbAgConvArgs, gradient
-from abagal.model.qbc import query_by_committee_iter, random_iter
+from data.prepare_ab_ag_dataset import prepare_ab_ag_dataset
+from model.methods import AbAgConvArgs, gradient, distance_based_iter, gradient_input, gradient_confounding
+from model.qbc import query_by_committee_iter, random_iter
 
 
 def run_experiment(
-    method: str = 'random',
+    method: str = 'gradient_conf',
+    metrics = 'mean',
     random_seed: int = 0,
     error_rate: float = 0.05,
     data_path: Path | str = Path(__file__).resolve().parents[2] / 'data' / 'processed' / 'ab_ag_binding.tsv',
@@ -53,9 +54,10 @@ def run_experiment(
     choices = ['train','testAG','testAB','test',]
     df_train['total_split'] = np.select(conditions, choices)
     print(f"[INFO] Prepared train dataset: {df_train.shape[0]} rows")
-
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    iterations = df_train[df_train.total_split=='train'].AgSeq.drop_duplicates().shape[0] - base_antigens_count
+    iterations = df_train[df_train.total_split=='train'].AgSeq.drop_duplicates().shape[0] - base_antigens_count # default
+    # iterations = 2
     print(f"Experiment: {method}, random_state: {random_seed}")
 
     print(f"[INFO] Running method '{method}'...")
@@ -80,6 +82,141 @@ def run_experiment(
             device=device,
             random_state=random_seed,
             dis_quantile=error_rate,
+        )
+    elif method == 'model_grad_avg':
+        df_res = gradient(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            option='model_grad',
+            metrics='mean'
+        )
+    elif method == 'model_grad_max':
+        df_res = gradient(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            option='model_grad',
+            metrics='max'
+        )
+    elif method == 'grad01_avg':
+        df_res = gradient(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            option='both_labels',
+            metrics='mean'
+        )
+    elif method == 'grad01_max':
+        df_res = gradient(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            option='both_labels',
+            metrics='max'
+        )
+    elif method == 'threshold_max':
+        df_res = gradient(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            option = 'threshold',
+            metrics='max'
+        )
+    elif method == 'threshold_avg':
+        df_res = gradient(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            option = 'threshold',
+            metrics='mean'
+        )
+    elif method == 'gradient_conf_max':
+        df_res = gradient_confounding(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            metrics='max'
+        )
+    elif method == 'gradient_conf_avg':
+        df_res = gradient_confounding(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            metrics='mean'
+        )
+    elif method == 'gradient_input_max':
+        df_res = gradient_input(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            metrics='max'
+        )
+    elif method == 'gradient_input_avg':
+        df_res = gradient_input(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            metrics='mean'
+        )
+    elif method == 'aligns':
+        df_res = distance_based_iter(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+        )
+    elif method == 'hamming_max':
+        df_res = distance_based_iter(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            option = 'hamming_max'
+        )
+    elif method == 'hamming_min':
+        df_res = distance_based_iter(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            option = 'hamming_min'
         )
     else:
         raise ValueError(f"Unknown method: {method}")
