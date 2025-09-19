@@ -412,3 +412,73 @@ def distance_based_iter(dataset: pd.DataFrame, iterations: int, base_antigens_co
         df_train_ags = pd.concat([df_train_ags, df_train_ags_iter], ignore_index=True)
         
     return df_train_ags
+
+
+def feature(dataset: pd.DataFrame, iterations: int, base_antigens_count, training_args: AbAgConvArgs, device: str, random_state: int, option: str) -> tp.List[float]: 
+    """
+    Distance-based active learning method that uses NN features for distance computation
+    """
+    df_antigens = dataset[dataset.total_split=='train'][['AgSeq']].drop_duplicates().reset_index(drop=True)
+    antigen_list = list(df_antigens.sample(frac=1.0, random_state=random_state).AgSeq)
+    antigen_base_list = antigen_list[:base_antigens_count]
+    antigen_add_list = antigen_list[base_antigens_count:]
+    
+    torch.manual_seed(random_state)
+    net = AbAgConvNet().to(device)
+    nets, df_train_ags = train_committee(dataset, [net], antigen_base_list, training_args,
+                                            device, random_state, 0, -1)
+    net = nets[0]
+    
+    for k in tqdm(range(iterations)):
+        net.eval()
+        ag_selected_vec_lst = []
+        for ag in antigen_base_list:
+            dataset_ag = AbAgDataset(df=dataset.query('total_split=="train" and AgSeq==@ag'), device=device)
+            loader = torch.utils.data.DataLoader(dataset=dataset_ag, batch_size=training_args.train_batch_size, drop_last=False)
+            with torch.no_grad():
+                ag_vec = torch.zeros(300).to(device)
+                for data, _ in loader:
+                    ag_vec = ag_vec + net.fc1_extract(data).sum(dim=0)
+                ag_vec = ag_vec / len(dataset_ag)
+                ag_selected_vec_lst.append(ag_vec)
+
+        ag_unselected_vec_lst = []
+        for ag in antigen_add_list:
+            dataset_ag = AbAgDataset(df=dataset.query('total_split=="train" and AgSeq==@ag'), device=device)
+            loader = torch.utils.data.DataLoader(dataset=dataset_ag, batch_size=training_args.train_batch_size, drop_last=False)
+            with torch.no_grad():
+                ag_vec = torch.zeros(300).to(device)
+                for data, _ in loader:
+                    ag_vec = ag_vec + net.fc1_extract(data).sum(dim=0)
+                ag_vec = ag_vec / len(dataset_ag)
+                ag_unselected_vec_lst.append(ag_vec)
+
+
+        dst_lst = []
+        if option == 'euclidean':
+            for usel_vec in ag_unselected_vec_lst:
+                avg_euc = 0
+                for sel_vec in ag_selected_vec_lst:
+                    avg_euc = avg_euc + torch.linalg.norm(sel_vec - usel_vec).item()
+                dst_lst.append(avg_euc / (len(ag_selected_vec_lst)*len(ag_unselected_vec_lst)))
+
+        elif option == 'cosine':
+            for usel_vec in ag_unselected_vec_lst:
+                avg_euc = 0
+                for sel_vec in ag_selected_vec_lst:
+                    avg_euc = avg_euc + (1-F.cosine_similarity(sel_vec, usel_vec, dim=0).item())
+                dst_lst.append(avg_euc / (len(ag_selected_vec_lst)*len(ag_unselected_vec_lst)))
+
+        else:
+            raise ValueError(f"Unknown option: {option}")
+        
+        new_antigen = antigen_add_list.pop(np.argmax(dst_lst))
+        antigen_base_list.append(new_antigen)
+        
+        torch.manual_seed(random_state)
+        net.train()
+        nets, df_train_ags_iter = train_committee(dataset, [net], antigen_base_list, training_args,
+                                            device, random_state, k+1, -1)
+        net = nets[0]
+        df_train_ags = pd.concat([df_train_ags, df_train_ags_iter], ignore_index=True)
+    return df_train_ags

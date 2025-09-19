@@ -14,7 +14,7 @@ from tqdm import tqdm
 import time
 
 from data.prepare_ab_ag_dataset import prepare_ab_ag_dataset
-from model.methods import AbAgConvArgs, gradient, distance_based_iter, gradient_input, gradient_confounding
+from model.methods import AbAgConvArgs, gradient, distance_based_iter, gradient_input, gradient_confounding, feature
 from model.qbc import query_by_committee_iter, random_iter
 
 
@@ -217,6 +217,26 @@ def run_experiment(
             device=device,
             random_state=random_seed,
             option = 'hamming_min'
+        )
+    elif method == 'feature_eucl':
+        df_res = feature(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            option = 'euclidean'
+        )
+    elif method == 'feature_cosine':#option: str
+        df_res = feature(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            option = 'cosine'
         )
     else:
         raise ValueError(f"Unknown method: {method}")

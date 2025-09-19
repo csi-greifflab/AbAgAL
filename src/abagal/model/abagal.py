@@ -35,6 +35,16 @@ class AbAgConvNet(nn.Module):
         x = self.fc2(x)
         return x
 
+    def fc1_extract(self, x):
+        x = self.embedding(x).view(-1, 1, self.sequence_length, 20)
+        x = self.convolution(x)
+        x = self.activation(x)
+        x = self.dropout(x)
+        x = self.max_pooling(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        return x
+
 class AbAgConvNet_grad(nn.Module):
     def __init__(self):
         super().__init__()
