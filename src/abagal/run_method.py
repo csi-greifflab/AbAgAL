@@ -198,6 +198,16 @@ def run_experiment(
             device=device,
             random_state=random_seed,
         )
+    elif method == 'aligns_BLOSUM':
+        df_res = distance_based_iter(
+            dataset=df_train,
+            iterations=iterations,
+            base_antigens_count=base_antigens_count,
+            training_args=AbAgConvArgs(),
+            device=device,
+            random_state=random_seed,
+            option = 'aligns_BLOSUM'
+        )
     elif method == 'hamming_max':
         df_res = distance_based_iter(
             dataset=df_train,
