@@ -8,6 +8,7 @@ import typing as tp
 import Levenshtein
 from scipy.spatial import distance
 from Bio import Align
+from Bio.Align import substitution_matrices
 from tqdm import tqdm
 
 import importlib
@@ -365,17 +366,23 @@ def hamming_opt_min_dist(dataset, antigen_base_list, antigen_add_list):
     return(antigen_add_list.index(ag_full_name))
 
 # Alignments
-def aligns_ag(dataset, antigen_base_list, antigen_add_list):
+def aligns_ag(dataset, antigen_base_list, antigen_add_list, sub_matrix = False):
     """
     Counts ax alignment-based distance between an antigene and a set of antigens.
     """
     base_list = list(dataset.AgSeq[dataset.AgSeq.isin(antigen_base_list)].unique())
     add_list = list(dataset.AgSeq[dataset.AgSeq.isin(antigen_add_list)].unique())
     aligns_dist = []
+
+    aligner = Align.PairwiseAligner()
+    if sub_matrix:
+        matrix = substitution_matrices.load("BLOSUM62")
+        aligner.substitution_matrix = matrix
+    
     for new_ag in add_list:
         score = 0
         for old_ag in base_list:
-            aligner = Align.PairwiseAligner()
+
             alignments = aligner.align(old_ag, new_ag)
             score += alignments.score
         aligns_dist.append(score) 
@@ -398,6 +405,8 @@ def distance_based_iter(dataset: pd.DataFrame, iterations: int, base_antigens_co
     for k in tqdm(range(iterations)):
         if option == 'aligns':
             new_antigen = antigen_add_list.pop(aligns_ag(df_antigens, antigen_base_list, antigen_add_list))
+        elif option == 'aligns_BLOSUM':
+            new_antigen = antigen_add_list.pop(aligns_ag(df_antigens, antigen_base_list, antigen_add_list, sub_matrix = True))
         elif option == 'hamming_max':
             new_antigen = antigen_add_list.pop(hamming_opt(df_antigens, antigen_base_list, antigen_add_list))
         elif option == 'hamming_min':
